@@ -1,0 +1,373 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import numpy as np
+import random
+
+# --- Configuration ---
+st.set_page_config(page_title="Time-Curve Betting Simulation", layout="wide")
+
+# --- Core Logic ---
+
+def calculate_multiplier(t, k, side='Favorite', T_max=90):
+    """
+    Calculates the time-decay multiplier M(t).
+    Favorite: M(t) = 1 - (t / T_max)^k
+    Underdog: M(t) = 1 + (t / T_max)^k
+    """
+    if t < 0: return 1.0
+    
+    if side == 'Favorite':
+        if t > T_max: return 0.0
+        return 1.0 - (t / T_max) ** k
+    else: # Underdog Bonus
+        return 1.0 + (t / T_max) ** k
+
+def calculate_shares(amount, side, t, k, T_max=90):
+    """
+    Calculates shares received for a given bet amount.
+    """
+    multiplier = calculate_multiplier(t, k, side, T_max)
+    return amount * multiplier
+
+# --- Agent Simulation ---
+
+class Agent:
+    def __init__(self, name, strategy_type):
+        self.name = name
+        self.strategy_type = strategy_type
+        self.bet_amount = 100.0 # Standard bet unit
+        self.bet_time = 0
+        self.side = 'Favorite' # Default
+        self.shares = 0.0
+
+def run_simulation(k_factor, win_prob, winner_side, num_agents=100):
+    agents = []
+    
+    # Agent Mix
+    # 40% Believers (Early, Favorite)
+    # 20% Snipers (Late, Favorite)
+    # 40% Degens (Random time, Underdog)
+    
+    num_believers = int(num_agents * 0.4)
+    num_snipers = int(num_agents * 0.2)
+    num_degens = int(num_agents * 0.4)
+    
+    # Create Believers
+    for i in range(num_believers):
+        agent = Agent(f"Believer_{i}", "Believer")
+        agent.side = 'Favorite'
+        # Bet early: 0-20 mins
+        agent.bet_time = random.randint(0, 20)
+        agents.append(agent)
+        
+    # Create Snipers
+    for i in range(num_snipers):
+        agent = Agent(f"Sniper_{i}", "Sniper")
+        agent.side = 'Favorite'
+        # Bet late: 80-90 mins
+        agent.bet_time = random.randint(80, 90)
+        agents.append(agent)
+        
+    # Create Degens
+    for i in range(num_degens):
+        agent = Agent(f"Degen_{i}", "Degen")
+        agent.side = 'Underdog'
+        # Bet anytime
+        agent.bet_time = random.randint(0, 90)
+        agents.append(agent)
+    
+    # Process Bets
+    pool_favorite = 0.0
+    pool_underdog = 0.0
+    total_shares_favorite = 0.0
+    total_shares_underdog = 0.0
+    
+    results = []
+    
+    for agent in agents:
+        agent.shares = calculate_shares(agent.bet_amount, agent.side, agent.bet_time, k_factor)
+        
+        if agent.side == 'Favorite':
+            pool_favorite += agent.bet_amount
+            total_shares_favorite += agent.shares
+        else:
+            pool_underdog += agent.bet_amount
+            total_shares_underdog += agent.shares
+            
+        results.append({
+            "Agent Type": agent.strategy_type,
+            "Bet Time (min)": agent.bet_time,
+            "Side": agent.side,
+            "Bet Amount": agent.bet_amount,
+            "Shares Received": agent.shares,
+            "Multiplier": calculate_multiplier(agent.bet_time, k_factor, agent.side)
+        })
+        
+    df_results = pd.DataFrame(results)
+    
+    # Payout Calculation
+    # Parimutuel: Total Pot / Total Winning Shares
+    
+    total_pot = pool_favorite + pool_underdog
+    
+    if winner_side == 'Favorite':
+        winning_shares = total_shares_favorite
+    else:
+        winning_shares = total_shares_underdog
+        
+    if winning_shares > 0:
+        payout_per_share = total_pot / winning_shares
+    else:
+        payout_per_share = 0
+        
+    df_results['Payout'] = df_results.apply(
+        lambda x: x['Shares Received'] * payout_per_share if x['Side'] == winner_side else 0.0, axis=1
+    )
+    
+    df_results['ROI %'] = (df_results['Payout'] - df_results['Bet Amount']) / df_results['Bet Amount'] * 100
+    
+    return df_results, pool_favorite, pool_underdog, total_pot
+
+# --- Apple Style Assets ---
+
+# --- Apple Style Assets ---
+
+def inject_custom_css():
+    st.markdown("""
+    <style>
+        /* Global Font - Apple System */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+        
+        html, body, [class*="css"] {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        /* Global Styles */
+        .stApp {
+            background: radial-gradient(circle at 50% 0%, #ffffff 0%, #f5f5f7 100%);
+            color: #1D1D1F;
+        }
+        
+        /* Headings */
+        h1, h2, h3 {
+            color: #1D1D1F !important;
+            font-weight: 600 !important;
+            letter-spacing: -0.02em;
+        }
+        
+        /* Glassmorphism Cards */
+        div[data-testid="stExpander"], div[data-testid="stMetric"] {
+            background-color: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+            padding: 20px;
+        }
+        
+        /* Buttons */
+        .stButton > button {
+            background: linear-gradient(180deg, #0071E3 0%, #0077ED 100%);
+            color: #FFFFFF;
+            border: none;
+            border-radius: 980px; /* Pill shape */
+            font-weight: 500;
+            padding: 0.6rem 1.2rem;
+            box-shadow: 0 2px 5px rgba(0, 113, 227, 0.2);
+            transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+        .stButton > button:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0, 113, 227, 0.4);
+        }
+        
+        /* Inputs */
+        .stSlider > div > div > div > div {
+            background-color: #0071E3 !important;
+        }
+        
+        /* Tabs */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 32px;
+            background-color: transparent;
+            border-bottom: 1px solid #E5E5EA;
+            padding-bottom: 0px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            height: 40px;
+            white-space: pre-wrap;
+            background-color: transparent;
+            border-radius: 0px;
+            gap: 1px;
+            padding-top: 0px;
+            padding-bottom: 10px;
+            color: #86868B;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .stTabs [aria-selected="true"] {
+            background-color: transparent !important;
+            color: #1D1D1F !important;
+            border-bottom: 2px solid #0071E3;
+        }
+        
+        /* Metrics */
+        [data-testid="stMetricLabel"] {
+            color: #86868B !important;
+            font-size: 13px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        [data-testid="stMetricValue"] {
+            color: #1D1D1F !important;
+            font-weight: 600;
+            font-size: 28px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- UI Layout ---
+
+inject_custom_css()
+
+st.title("Time-Curve Simulation")
+st.markdown("Stress-testing the parimutuel market mechanism.")
+
+# --- Sidebar ---
+st.sidebar.header("Settings")
+
+with st.sidebar.expander("Parameters", expanded=True):
+    k_factor = st.slider("Decay Sharpness (k)", 1.0, 20.0, 5.0, 0.5)
+    st.caption("Controls how aggressively the price changes.")
+
+with st.sidebar.expander("Match Context", expanded=True):
+    win_prob = st.slider("Win Probability (%)", 0, 100, 80)
+    current_time = st.slider("Current Time (min)", 0, 90, 45)
+    winner_side = st.radio("Outcome", ["Favorite", "Underdog"])
+
+# --- Section 1: Mechanism Visualization ---
+st.header("Mechanism Overview")
+
+col1, col2 = st.columns(2)
+
+common_layout = dict(
+    template="plotly_white",
+    font=dict(family="-apple-system, BlinkMacSystemFont, sans-serif", color="#1D1D1F"),
+    margin=dict(l=20, r=20, t=40, b=20),
+    hovermode="x unified"
+)
+
+with col1:
+    st.subheader("Multiplier Curves")
+    t_values = np.linspace(0, 90, 100)
+    m_fav = [calculate_multiplier(t, k_factor, 'Favorite') for t in t_values]
+    m_und = [calculate_multiplier(t, k_factor, 'Underdog') for t in t_values]
+    
+    df_curve = pd.DataFrame({
+        "Time": np.concatenate([t_values, t_values]),
+        "Multiplier": np.concatenate([m_fav, m_und]),
+        "Side": ["Favorite"] * 100 + ["Underdog"] * 100
+    })
+    
+    fig_curve = px.line(df_curve, x="Time", y="Multiplier", color="Side", 
+                        color_discrete_map={"Favorite": "#FF9500", "Underdog": "#34C759"}, # Apple Orange & Green
+                        title=f"Multiplier (k={k_factor})")
+    fig_curve.add_vline(x=current_time, line_dash="dash", line_color="#86868B", annotation_text="Now")
+    fig_curve.update_layout(**common_layout)
+    st.plotly_chart(fig_curve, use_container_width=True)
+
+with col2:
+    st.subheader("Effective Price")
+    p_fav = [1/m if m > 0.01 else 100 for m in m_fav]
+    p_und = [1/m for m in m_und]
+    
+    df_price = pd.DataFrame({
+        "Time": np.concatenate([t_values, t_values]),
+        "Price": np.concatenate([p_fav, p_und]),
+        "Side": ["Favorite"] * 100 + ["Underdog"] * 100
+    })
+    
+    fig_price = px.line(df_price, x="Time", y="Price", color="Side",
+                        color_discrete_map={"Favorite": "#FF9500", "Underdog": "#34C759"},
+                        title="Price Impact")
+    fig_price.add_vline(x=current_time, line_dash="dash", line_color="#86868B", annotation_text="Now")
+    fig_price.update_layout(yaxis_range=[0, 5], **common_layout)
+    st.plotly_chart(fig_price, use_container_width=True)
+
+mult_fav = calculate_multiplier(current_time, k_factor, 'Favorite')
+mult_und = calculate_multiplier(current_time, k_factor, 'Underdog')
+
+c1, c2 = st.columns(2)
+c1.metric("Favorite Multiplier", f"{mult_fav:.4f}")
+c2.metric("Underdog Multiplier", f"{mult_und:.4f}")
+
+# --- Section 2: Agent Simulation ---
+st.divider()
+st.header("Simulation Arena")
+
+if st.button("Run Simulation", type="primary", use_container_width=True):
+    with st.spinner("Processing..."):
+        df_res, pool_fav, pool_und, total_pot = run_simulation(k_factor, win_prob, winner_side)
+        
+        # --- Metrics Row ---
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Total Pool", f"${total_pot:,.0f}")
+        m2.metric("Favorite Pool", f"${pool_fav:,.0f}")
+        m3.metric("Underdog Pool", f"${pool_und:,.0f}")
+        
+        avg_roi_believer = df_res[df_res['Agent Type'] == 'Believer']['ROI %'].mean()
+        avg_roi_sniper = df_res[df_res['Agent Type'] == 'Sniper']['ROI %'].mean()
+        m4.metric("Sniper ROI", f"{avg_roi_sniper:.1f}%")
+
+        # --- Analysis Tabs ---
+        tab1, tab2, tab3 = st.tabs(["ROI Analysis", "Volume Metrics", "Summary"])
+        
+        with tab1:
+            st.subheader(f"ROI Distribution ({winner_side} Wins)")
+            
+            fig_roi = px.scatter(
+                df_res, 
+                x="Bet Time (min)", 
+                y="ROI %", 
+                color="Agent Type",
+                size="Bet Amount",
+                symbol="Side",
+                color_discrete_map={"Believer": "#34C759", "Sniper": "#FF3B30", "Degen": "#5856D6"}, # Apple Green, Red, Purple
+                hover_data=["Shares Received", "Multiplier"],
+                title="Agent Performance"
+            )
+            fig_roi.add_hline(y=0, line_dash="dash", line_color="#86868B")
+            fig_roi.update_layout(**common_layout)
+            
+            st.plotly_chart(fig_roi, use_container_width=True)
+            
+        with tab2:
+            c1, c2 = st.columns(2)
+            with c1:
+                st.subheader("Betting Volume")
+                fig_vol = px.histogram(df_res, x="Bet Time (min)", color="Side", nbins=45, 
+                                     color_discrete_map={"Favorite": "#FF9500", "Underdog": "#34C759"})
+                fig_vol.update_layout(**common_layout)
+                st.plotly_chart(fig_vol, use_container_width=True)
+            with c2:
+                st.subheader("Pool Composition")
+                fig_pie = px.pie(names=["Favorite", "Underdog"], values=[pool_fav, pool_und], hole=0.6, 
+                               color_discrete_map={"Favorite": "#FF9500", "Underdog": "#34C759"})
+                fig_pie.update_layout(**common_layout)
+                st.plotly_chart(fig_pie, use_container_width=True)
+
+        with tab3:
+            st.subheader("Simulation Report")
+            if winner_side == 'Favorite':
+                st.success(f"Favorite Won. Believers ROI: {avg_roi_believer:.1f}%. Snipers ROI: {avg_roi_sniper:.1f}%.")
+            else:
+                st.info(f"Underdog Won. Degens ROI: {df_res[df_res['Agent Type'] == 'Degen']['ROI %'].mean():.1f}%.")
+                
+        with st.expander("Raw Data"):
+            st.dataframe(df_res)
