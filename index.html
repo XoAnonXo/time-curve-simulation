@@ -23,17 +23,31 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.58.1/build/stlite.js"></script>
     <script>
-      stlite.mount({
-        requirements: ["streamlit"],
-        entrypoint: "app.py",
-        files: {
-          "app.py": `
+      window.onerror = function(message, source, lineno, colno, error) {
+        const root = document.getElementById("root");
+        root.innerHTML += '<div style="color: red; padding: 20px; background: #xffdddd; border: 1px solid red; margin: 20px;"><h3>Error:</h3><pre>' + message + '\n' + source + ':' + lineno + '</pre></div>';
+      };
+      window.onunhandledrejection = function(event) {
+        const root = document.getElementById("root");
+        root.innerHTML += '<div style="color: red; padding: 20px; background: #xffdddd; border: 1px solid red; margin: 20px;"><h3>Unhandled Rejection:</h3><pre>' + event.reason + '</pre></div>';
+      };
+
+      try {
+        stlite.mount({
+          requirements: ["streamlit"],
+          entrypoint: "app.py",
+          files: {
+            "app.py": `
 import streamlit as st
 st.title("Hello World! 🌍")
 st.write("If you see this, st-lite is working.")
 `
-        }
-      })
+          }
+        });
+      } catch (e) {
+        const root = document.getElementById("root");
+        root.innerHTML += '<div style="color: red; padding: 20px; background: #xffdddd; border: 1px solid red; margin: 20px;"><h3>Mount Error:</h3><pre>' + e + '</pre></div>';
+      }
     </script>
   </body>
 </html>
