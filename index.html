@@ -225,7 +225,8 @@ chart_data_mult = {
 
 with col1:
     st.subheader("Multiplier Curves")
-    st.line_chart(chart_data_mult, color=["#FF9500", "#34C759"])
+    # st.line_chart(chart_data_mult, color=["#FF9500", "#34C759"])
+    st.info("Charts disabled for performance")
 
 with col2:
     st.subheader("Effective Price")
@@ -236,7 +237,8 @@ with col2:
         "Favorite": p_fav,
         "Underdog": p_und
     }
-    st.line_chart(chart_data_price, color=["#FF9500", "#34C759"])
+    # st.line_chart(chart_data_price, color=["#FF9500", "#34C759"])
+    st.info("Charts disabled for performance")
 
 mult_fav = calculate_multiplier(current_time, k_factor, 'Favorite')
 mult_und = calculate_multiplier(current_time, k_factor, 'Underdog')
